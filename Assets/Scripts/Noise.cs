@@ -4,7 +4,7 @@ using UnityEngine;
 
 public static class Noise
 {
-    public static float[,] GenerateNoiseMap(int mapWidth, int mapHeight, int seed, float scale, int octaves, float persistence, float lacunarity, Vector2 offset)
+    public static float[,] GenerateNoiseMap(int mapWidth, int mapHeight, int seed, float scale, int octaves, float persistence, float lacunarity, Vector2 offset, bool showOneOctave, int octaveToShow, bool sampleDifferentPlacesForEachOctave)
     {
         float[,] noiseMap = new float[mapWidth, mapHeight];
 
@@ -36,59 +36,117 @@ public static class Noise
         float halfWidth = mapWidth / 2f;
         float halfHeight = mapHeight / 2f;
 
-
-        for(int y=0; y < mapHeight; y++)
+        if (!showOneOctave)
         {
-            for(int x = 0; x < mapWidth; x++)
+            for (int y = 0; y < mapHeight; y++)
             {
-
-                float amplitude = 1;
-                float frequency = 1;
-                float noiseHeight = 0;
-
-                for (int i = 0; i < octaves; i++)
+                for (int x = 0; x < mapWidth; x++)
                 {
+
+                    float amplitude = 1;
+                    float frequency = 1;
+                    float noiseHeight = 0;
+
+                    for (int i = 0; i < octaves; i++)
+                    {
+                        //the higher the frequency, the farther apart the sample points will be, which means the height values will change more rapidly
+                        //we add in the octave offsets so that each octave samples points from a different area, but each octaves' points are in the same area as other
+                        //points in that same octave
+                        //We subtract halfWidth and halfHeigh from x and y respectively so that when we change the noise scale, the map "zooms" into the center instead of the top right corner
+                        float sampleX = (x - halfWidth) / scale * frequency + ((sampleDifferentPlacesForEachOctave) ? octaveOffsets[i].x : 0);
+                        float sampleY = (y - halfHeight) / scale * frequency + ((sampleDifferentPlacesForEachOctave) ? octaveOffsets[i].y : 0);
+
+                        //multiply perlinvalue by 2 and subtract 1, so that we can sometimes get negative perlinvalues and have more interesting noise
+                        float perlinValue = Mathf.PerlinNoise(sampleX, sampleY) * 2 - 1;
+                        //this is because as we iterate through the octaves, we keep adding on to the result of the last octave
+                        //and we do this for each "cell" in the grid for which we are generating terrain
+                        noiseHeight += perlinValue * amplitude;
+
+                        //amplitude decreases with each octave
+                        amplitude *= persistence;
+                        //frequency increases with each octave
+                        frequency *= lacunarity;
+                    }
+
+                    //we keep track of the min and max so that we can know the range that our noise values are in
+                    if (noiseHeight > maxNoiseHeight)
+                    {
+                        maxNoiseHeight = noiseHeight;
+                    }
+                    else if (noiseHeight < minNoiseHeight)
+                    {
+                        minNoiseHeight = noiseHeight;
+                    }
+
+                    //now we have calculated the noiseheight for this point, taking into account all the octaves
+                    noiseMap[x, y] = noiseHeight;
+                }
+            }
+
+            //this loop goes through the noiseMap and normalizes by making all values be between zero and one, relative to each other
+            for (int y = 0; y < mapHeight; y++)
+            {
+                for (int x = 0; x < mapWidth; x++)
+                {
+                    //inverseLerp returns a value between zero and one
+                    //if noiseMap value is equal to maxNoiseHeight, then it returns 1, min returns 0, etc
+                    noiseMap[x, y] = Mathf.InverseLerp(minNoiseHeight, maxNoiseHeight, noiseMap[x, y]);
+                }
+            }
+        } else
+        {
+            for (int y = 0; y < mapHeight; y++)
+            {
+                for (int x = 0; x < mapWidth; x++)
+                {
+
+                    float amplitude = 1;
+                    float frequency = 1;
+                    float noiseHeight = 0;
+
                     //the higher the frequency, the farther apart the sample points will be, which means the height values will change more rapidly
                     //we add in the octave offsets so that each octave samples points from a different area, but each octaves' points are in the same area as other
                     //points in that same octave
                     //We subtract halfWidth and halfHeigh from x and y respectively so that when we change the noise scale, the map "zooms" into the center instead of the top right corner
-                    float sampleX = (x-halfWidth) / scale * frequency + octaveOffsets[i].x;
-                    float sampleY = (y-halfHeight) / scale * frequency + octaveOffsets[i].y;
+                    float sampleX = (x - halfWidth) / scale * Mathf.Pow(lacunarity, octaveToShow) +  ((sampleDifferentPlacesForEachOctave) ? octaveOffsets[octaveToShow].x : 0);
+                    float sampleY = (y - halfHeight) / scale * Mathf.Pow(lacunarity, octaveToShow) + ((sampleDifferentPlacesForEachOctave) ? octaveOffsets[octaveToShow].y : 0);
 
                     //multiply perlinvalue by 2 and subtract 1, so that we can sometimes get negative perlinvalues and have more interesting noise
                     float perlinValue = Mathf.PerlinNoise(sampleX, sampleY) * 2 - 1;
                     //this is because as we iterate through the octaves, we keep adding on to the result of the last octave
                     //and we do this for each "cell" in the grid for which we are generating terrain
-                    noiseHeight += perlinValue * amplitude;
+                    noiseHeight += perlinValue * Mathf.Pow(persistence, octaveToShow);
 
                     //amplitude decreases with each octave
                     amplitude *= persistence;
                     //frequency increases with each octave
                     frequency *= lacunarity;
-                }
 
-                //we keep track of the min and max so that we can know the range that our noise values are in
-                if(noiseHeight > maxNoiseHeight)
-                {
-                    maxNoiseHeight = noiseHeight;
-                } else if(noiseHeight < minNoiseHeight)
-                {
-                    minNoiseHeight = noiseHeight;
-                }
 
-                //now we have calculated the noiseheight for this point, taking into account all the octaves
-                noiseMap[x, y] = noiseHeight;
+                    //we keep track of the min and max so that we can know the range that our noise values are in
+                    if (noiseHeight > maxNoiseHeight)
+                    {
+                        maxNoiseHeight = noiseHeight;
+                    }
+                    else if (noiseHeight < minNoiseHeight)
+                    {
+                        minNoiseHeight = noiseHeight;
+                    }
+
+                    //now we have calculated the noiseheight for this point, taking into account all the octaves
+                    noiseMap[x, y] = noiseHeight;
+                }
             }
-        }
 
-        //this loop goes through the noiseMap and normalizes by making all values be between zero and one, relative to each other
-        for (int y = 0; y < mapHeight; y++)
-        {
-            for (int x = 0; x < mapWidth; x++)
+            //this loop goes through the noiseMap and normalizes by making all values be between zero and one, relative to each other
+            for (int y = 0; y < mapHeight; y++)
             {
-                //inverseLerp returns a value between zero and one
-                //if noiseMap value is equal to maxNoiseHeight, then it returns 1, min returns 0, etc
-                noiseMap[x, y] = Mathf.InverseLerp(minNoiseHeight, maxNoiseHeight, noiseMap[x, y]);
+                for (int x = 0; x < mapWidth; x++)
+                {
+                    //inverseLerp returns a value between zero and one
+                    //if noiseMap value is equal to maxNoiseHeight, then it returns 1, min returns 0, etc
+                    noiseMap[x, y] = Mathf.InverseLerp(minNoiseHeight, maxNoiseHeight, noiseMap[x, y]);
+                }
             }
         }
 

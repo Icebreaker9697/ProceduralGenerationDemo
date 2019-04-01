@@ -41,6 +41,12 @@ public class MapGenerator : MonoBehaviour
 
     public bool autoUpdate;
 
+    public bool showOneOctave;
+
+    public bool sampleDifferentPlacesForEachOctave;
+
+    public int octaveToShow;
+
     public TerrainType[] regions;
 
     //used to hold the callbacks that need to be called on the main thread
@@ -129,7 +135,11 @@ public class MapGenerator : MonoBehaviour
 
     MapData GenerateMapData()
     {
-        float[,] noiseMap = Noise.GenerateNoiseMap(mapChunkSize, mapChunkSize, seed, noiseScale, octaves, persistence, lacunarity, offset);
+        if(octaveToShow >= octaves)
+        {
+            octaveToShow = octaves - 1;
+        }
+        float[,] noiseMap = Noise.GenerateNoiseMap(mapChunkSize, mapChunkSize, seed, noiseScale, octaves, persistence, lacunarity, offset, showOneOctave, octaveToShow, sampleDifferentPlacesForEachOctave);
 
         //assign a color to each coordinate
         Color[] colorMap = new Color[mapChunkSize * mapChunkSize];
@@ -161,6 +171,16 @@ public class MapGenerator : MonoBehaviour
         if(octaves < 0)
         {
             octaves = 0;
+        }
+
+        if(octaveToShow > octaves)
+        {
+            octaveToShow = octaves - 1;
+        }
+
+        if(octaveToShow < 0)
+        {
+            octaveToShow = 0;
         }
     }
 
